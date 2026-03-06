@@ -20,9 +20,9 @@ class HomeAssistantController(MatchingCapability):
     worker: AgentWorker = None
     capability_worker: CapabilityWorker = None
 
-    # Config values loaded from config.json
-    ha_url: str = ""
-    ha_token: str = ""
+    # Config values from environment variables
+    ha_url: str = os.environ.get("HA_URL", "")
+    ha_token: str = os.environ.get("HA_TOKEN", "")
 
     # Security blocklist — these entity domains are not allowed
     BLOCKED_DOMAINS = {
@@ -34,15 +34,13 @@ class HomeAssistantController(MatchingCapability):
 
     @classmethod
     def register_capability(cls) -> "MatchingCapability":
-        with open(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
-        ) as file:
-            data = json.load(file)
+        # Config from environment variables or defaults
+        # Users: set HA_URL and HA_TOKEN environment variables before loading
         return cls(
-            unique_name=data["unique_name"],
-            matching_hotwords=data["matching_hotwords"],
-            ha_url=data.get("ha_url", ""),
-            ha_token=data.get("ha_token", ""),
+            unique_name="ha-controller",
+            matching_hotwords=["hey homey", "hey homie"],
+            ha_url=os.environ.get("HA_URL", "http://homeassistant.local:8123"),
+            ha_token=os.environ.get("HA_TOKEN", ""),
         )
 
     def call(self, worker: AgentWorker):
@@ -57,7 +55,7 @@ class HomeAssistantController(MatchingCapability):
             if not self.ha_url or not self.ha_token:
                 await self.capability_worker.speak(
                     "Home Assistant is not configured. "
-                    "Please add your HA URL and token in the ability settings."
+                    "Please set HA_URL and HA_TOKEN environment variables."
                 )
                 return
 

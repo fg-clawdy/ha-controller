@@ -7,9 +7,7 @@ via natural language commands. Uses LLM to parse intent, then calls HA REST API.
 
 import json
 import os
-import urllib.request
-import urllib.parse
-import urllib.error
+import requests
 
 from src.agent.capability import MatchingCapability
 from src.main import AgentWorker
@@ -186,56 +184,37 @@ If the command is invalid, rejected, or unclear, respond with exactly: null"""
         payload = {"entity_id": entity_id}
         payload.update(data)
 
-        json_data = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Authorization": f"Bearer {self.ha_token}",
+            "Content-Type": "application/json",
+        }
 
         try:
-            request = urllib.request.Request(
-                url,
-                data=json_data,
-                headers={
-                    "Authorization": f"Bearer {self.ha_token}",
-                    "Content-Type": "application/json",
-                },
-                method="POST"
-            )
+            resp = requests.post(url, json=payload, headers=headers, timeout=10)
 
-            with urllib.request.urlopen(request, timeout=10) as response:
-                if response.status == 200:
-                    # Generate friendly response message
-                    action = "turned on" if service == "turn_on" else \
-                             "turned off" if service == "turn_off" else \
-                             "set" if service == "set_temperature" else \
-                             "controlled"
+            if resp.status_code == 200:
+                # Generate friendly response message
+                action = "turned on" if service == "turn_on" else \
+                         "turned off" if service == "turn_off" else \
+                         "set" if service == "set_temperature" else \
+                         "controlled"
 
-                    # Extract friendly name from entity_id
-                    friendly_name = entity_id.split(".")[-1].replace("_", " ")
+                # Extract friendly name from entity_id
+                friendly_name = entity_id.split(".")[-1].replace("_", " ")
 
-                    return {
-                        "success": True,
-                        "message": f"Done. I've {action} the {friendly_name}."
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "error": f"HA returned status {response.status}"
-                    }
+                return {
+                    "success": True,
+                    "message": f"Done. I've {action} the {friendly_name}."
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"HA returned status {resp.status_code}"
+                }
 
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8") if e.fp else str(e)
-            self.worker.editor_logging_handler.error(f"HA HTTP error: {e.code} - {error_body}")
-            return {
-                "success": False,
-                "error": f"Home Assistant error: {e.code}"
-            }
-        except urllib.error.URLError as e:
-            self.worker.editor_logging_handler.error(f"HA URL error: {e.reason}")
-            return {
-                "success": False,
-                "error": f"Could not connect to Home Assistant: {e.reason}"
-            }
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             self.worker.editor_logging_handler.error(f"HA API error: {e}")
             return {
                 "success": False,
-                "error": str(e)
+                "error": f"Could not connect to Home Assistant: {str(e)}"
             }

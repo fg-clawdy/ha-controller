@@ -6,7 +6,6 @@ via natural language commands. Uses LLM to parse intent, then calls HA REST API.
 """
 
 import json
-import os
 import requests
 
 from src.agent.capability import MatchingCapability
@@ -20,9 +19,9 @@ class HomeAssistantController(MatchingCapability):
     worker: AgentWorker = None
     capability_worker: CapabilityWorker = None
 
-    # Config values from environment variables
-    ha_url: str = os.environ.get("HA_URL", "")
-    ha_token: str = os.environ.get("HA_TOKEN", "")
+    # Default config - users should edit these values
+    ha_url: str = "http://homeassistant.local:8123"
+    ha_token: str = "YOUR_HA_TOKEN_HERE"
 
     # Security blocklist — these entity domains are not allowed
     BLOCKED_DOMAINS = {
@@ -34,13 +33,9 @@ class HomeAssistantController(MatchingCapability):
 
     @classmethod
     def register_capability(cls) -> "MatchingCapability":
-        # Config from environment variables or defaults
-        # Users: set HA_URL and HA_TOKEN environment variables before loading
         return cls(
             unique_name="ha-controller",
             matching_hotwords=["hey homey", "hey homie"],
-            ha_url=os.environ.get("HA_URL", "http://homeassistant.local:8123"),
-            ha_token=os.environ.get("HA_TOKEN", ""),
         )
 
     def call(self, worker: AgentWorker):
@@ -52,10 +47,10 @@ class HomeAssistantController(MatchingCapability):
         """Main ability entry point."""
         try:
             # Validate config on startup
-            if not self.ha_url or not self.ha_token:
+            if not self.ha_token or self.ha_token == "YOUR_HA_TOKEN_HERE":
                 await self.capability_worker.speak(
                     "Home Assistant is not configured. "
-                    "Please set HA_URL and HA_TOKEN environment variables."
+                    "Please edit the ha_token value in the ability code."
                 )
                 return
 
